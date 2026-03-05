@@ -1,0 +1,62 @@
+default_agent: zelo_sql_agent
+agents:
+  zelo_sql_agent:
+    name: zelo_sql_agent
+    language: python
+    node_version: '20'
+    entrypoint: /home/ubuntu/spain/rama/EPC_AgentCore/main.py
+    deployment_type: container
+    runtime_type: null
+    platform: linux/arm64
+    container_runtime: none
+    source_path: /home/ubuntu/spain/rama/EPC_AgentCore
+    aws:
+      execution_role: arn:aws:iam::891377001420:role/service-role/AmazonBedrockAgentCoreRuntimeDefaultServiceRole-otgj1
+      execution_role_auto_create: true
+      account: '891377001420'
+      region: eu-central-1
+      ecr_repository: 891377001420.dkr.ecr.eu-central-1.amazonaws.com/bedrock-agentcore-zelo_sql_agent
+      ecr_auto_create: false
+      s3_path: null
+      s3_auto_create: false
+      network_configuration:
+        network_mode: PUBLIC
+        network_mode_config: null
+      protocol_configuration:
+        server_protocol: HTTP
+      observability:
+        enabled: true
+      lifecycle_configuration:
+        idle_runtime_session_timeout: null
+        max_lifetime: null
+    bedrock_agentcore:
+      agent_id: zelo_sql_agent-wEaugDGMq9
+      agent_arn: arn:aws:bedrock-agentcore:eu-central-1:891377001420:runtime/zelo_sql_agent-wEaugDGMq9
+      agent_session_id: ac2fcf51-3eeb-4f42-8055-6e012aa65ab0
+    codebuild:
+      project_name: bedrock-agentcore-zelo_sql_agent-builder
+      execution_role: arn:aws:iam::891377001420:role/AmazonBedrockAgentCoreSDKCodeBuild-eu-central-1-8866e33341
+      source_bucket: bedrock-agentcore-codebuild-sources-891377001420-eu-central-1
+    memory:
+      mode: STM_AND_LTM
+      memory_id: zelo_sql_agent_mem-91VSzs57PL
+      memory_arn: null
+      memory_name: zelo_sql_agent_memory
+      event_expiry_days: 30
+      first_invoke_memory_check_done: false
+      was_created_by_toolkit: false
+    identity:
+      credential_providers: []
+      workload: null
+    aws_jwt:
+      enabled: false
+      audiences: []
+      signing_algorithm: ES384
+      issuer_url: null
+      duration_seconds: 300
+    authorizer_configuration: null
+    request_header_configuration: null
+    oauth_configuration: null
+    api_key_env_var_name: null
+    api_key_credential_provider_name: null
+    is_generated_by_agentcore_create: false

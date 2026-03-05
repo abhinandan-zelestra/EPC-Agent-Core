@@ -1,0 +1,501 @@
+question,status,sql_query,response
+Give me development budget for germany from 2024-2026,PASS,"WITH latest AS (
+  SELECT *,
+         ROW_NUMBER() OVER (
+           PARTITION BY related_project, project_versioning_budget_label, budget_year_f, month_index
+           ORDER BY date_modified DESC
+         ) AS rn
+  FROM budget_details
+)
+SELECT SUM(budget_amount) AS total_budget
+FROM latest
+JOIN projects ON latest.related_project = projects.record_id
+WHERE projects.project_country IN ('Germany')
+  AND latest.budget_year_f BETWEEN 2024 AND 2026
+  AND rn = 1","{""query_intent"": ""Get development budget for Germany from 2024-2026"", ""sql_query"": ""WITH latest AS (\n  SELECT *,\n         ROW_NUMBER() OVER (\n           PARTITION BY related_project, project_versioning_budget_label, budget_year_f, month_index\n           ORDER BY date_modified DESC\n         ) AS rn\n  FROM budget_details\n)\nSELECT SUM(budget_amount) AS total_budget\nFROM latest\nJOIN projects ON latest.related_project = projects.record_id\nWHERE projects.project_country IN ('Germany')\n  AND latest.budget_year_f BETWEEN 2024 AND 2026\n  AND rn = 1"", ""tables_used"": [""budget_details"", ""projects""], ""filters_applied"": [""project_country IN ('Germany')"", ""budget_year_f BETWEEN 2024 AND 2026""], ""business_rules_applied"": [""Use latest rows from budget_details"", ""Sum budget_amount for filtered rows""], ""confidence_score"": 1.0}"
+Give me pre ppa for spain for all years,PASS,"WITH latest_budget AS (
+  SELECT *,
+         ROW_NUMBER() OVER (
+           PARTITION BY related_project, project_versioning_budget_label, budget_year_f, month_index
+           ORDER BY date_modified DESC
+         ) AS rn
+  FROM budget_details
+),
+
+latest_assumptions AS (
+  SELECT *,
+         ROW_NUMBER() OVER (
+           PARTITION BY site_name, document_stage, project_assumptions_clean, `group`
+           ORDER BY document_uploaded_date DESC
+         ) AS rn
+  FROM project_assumptions
+)
+
+SELECT 
+  p.project_id,
+  p.project_name,
+  p.project_country,
+  b.budget_year_f,
+  b.month_index,
+  b.pre_ppa_revenue
+FROM projects p
+JOIN latest_budget b ON p.record_id = b.related_project
+WHERE p.project_country = 'Spain'
+AND p.project_status IN ('Developing', 'Construction', 'Operating', 'Extended COD')
+AND p.stage IN ('Identified Opportunity', 'AdvancedDevelopment', 'LateDevelopment')
+ORDER BY p.project_id, b.budget_year_f, b.month_index","{""query_intent"": ""Get pre-PPA data for all years in Spain"", ""sql_query"": ""WITH latest_budget AS (\n  SELECT *,\n         ROW_NUMBER() OVER (\n           PARTITION BY related_project, project_versioning_budget_label, budget_year_f, month_index\n           ORDER BY date_modified DESC\n         ) AS rn\n  FROM budget_details\n),\n\nlatest_assumptions AS (\n  SELECT *,\n         ROW_NUMBER() OVER (\n           PARTITION BY site_name, document_stage, project_assumptions_clean, `group`\n           ORDER BY document_uploaded_date DESC\n         ) AS rn\n  FROM project_assumptions\n)\n\nSELECT \n  p.project_id,\n  p.project_name,\n  p.project_country,\n  b.budget_year_f,\n  b.month_index,\n  b.pre_ppa_revenue\nFROM projects p\nJOIN latest_budget b ON p.record_id = b.related_project\nWHERE p.project_country = 'Spain'\nAND p.project_status IN ('Developing', 'Construction', 'Operating', 'Extended COD')\nAND p.stage IN ('Identified Opportunity', 'AdvancedDevelopment', 'LateDevelopment')\nORDER BY p.project_id, b.budget_year_f, b.month_index"", ""tables_used"": [""projects"", ""budget_details""], ""filters_applied"": [""project_country = 'Spain'"", ""project_status IN ('Developing', 'Construction', 'Operating', 'Extended COD')"", ""stage IN ('Identified Opportunity', 'AdvancedDevelopment', 'LateDevelopment')""], ""business_rules_applied"": [""Use latest rows from budget_details"", ""Filter for portfolio projects"", ""Use pre_ppa_revenue from budget_details""], ""confidence_score"": 1.0}"
+Give me all projects by country,PASS,"SELECT project_country, COUNT(DISTINCT project_id) AS project_count
+FROM projects
+GROUP BY project_country","{""query_intent"": ""Get all projects by country"", ""sql_query"": ""SELECT project_country, COUNT(DISTINCT project_id) AS project_count\nFROM projects\nGROUP BY project_country"", ""tables_used"": [""projects""], ""filters_applied"": [], ""business_rules_applied"": [], ""confidence_score"": 0.9}"
+Give me the budget allocation per country for 2025,PASS,"WITH latest AS (
+  SELECT *,
+         ROW_NUMBER() OVER (
+           PARTITION BY related_project, project_versioning_budget_label, budget_year_f, month_index
+           ORDER BY date_modified DESC
+         ) AS rn
+  FROM budget_details
+)
+SELECT
+  p.project_country,
+  SUM(CASE WHEN bd.budget_year_f = 2025 THEN bd.total_budget_mw ELSE 0 END) AS budget_2025
+FROM latest bd
+JOIN projects p ON bd.related_project = p.record_id
+WHERE bd.rn = 1
+GROUP BY p.project_country","{""query_intent"": ""Get the budget allocation per country for 2025"", ""sql_query"": ""WITH latest AS (\n  SELECT *,\n         ROW_NUMBER() OVER (\n           PARTITION BY related_project, project_versioning_budget_label, budget_year_f, month_index\n           ORDER BY date_modified DESC\n         ) AS rn\n  FROM budget_details\n)\nSELECT\n  p.project_country,\n  SUM(CASE WHEN bd.budget_year_f = 2025 THEN bd.total_budget_mw ELSE 0 END) AS budget_2025\nFROM latest bd\nJOIN projects p ON bd.related_project = p.record_id\nWHERE bd.rn = 1\nGROUP BY p.project_country"", ""tables_used"": [""budget_details"", ""projects""], ""filters_applied"": [""budget_year_f = 2025""], ""business_rules_applied"": [""Latest row deduplication for budget_details""], ""confidence_score"": 1.0}"
+Give me all projects by country segregated by stage,PASS,"WITH latest_projects AS (
+  SELECT *,
+         ROW_NUMBER() OVER (
+           PARTITION BY record_id
+           ORDER BY updated_at DESC
+         ) AS rn
+  FROM projects
+)
+SELECT
+  project_country,
+  stage,
+  COUNT(DISTINCT record_id) AS project_count
+FROM latest_projects
+WHERE rn = 1
+GROUP BY project_country, stage
+ORDER BY project_country, stage","{""query_intent"": ""Get all projects by country segregated by stage"", ""sql_query"": ""WITH latest_projects AS (\n  SELECT *,\n         ROW_NUMBER() OVER (\n           PARTITION BY record_id\n           ORDER BY updated_at DESC\n         ) AS rn\n  FROM projects\n)\nSELECT\n  project_country,\n  stage,\n  COUNT(DISTINCT record_id) AS project_count\nFROM latest_projects\nWHERE rn = 1\nGROUP BY project_country, stage\nORDER BY project_country, stage"", ""tables_used"": [""projects""], ""filters_applied"": [""latest row using ROW_NUMBER() OVER(PARTITION BY record_id ORDER BY updated_at DESC)""], ""business_rules_applied"": [""Use latest row for each project""], ""confidence_score"": 1.0}"
+Give me all projects by country segregated by status,PASS,"WITH latest_projects AS (
+  SELECT *,
+         ROW_NUMBER() OVER (
+           PARTITION BY project_id
+           ORDER BY record_id DESC
+         ) AS rn
+  FROM projects
+)
+SELECT 
+  project_country,
+  project_status,
+  COUNT(DISTINCT project_id) AS project_count
+FROM latest_projects
+WHERE rn = 1
+GROUP BY project_country, project_status
+ORDER BY project_country, project_status","{""query_intent"": ""Get all projects by country segregated by status"", ""sql_query"": ""WITH latest_projects AS (\n  SELECT *,\n         ROW_NUMBER() OVER (\n           PARTITION BY project_id\n           ORDER BY record_id DESC\n         ) AS rn\n  FROM projects\n)\nSELECT \n  project_country,\n  project_status,\n  COUNT(DISTINCT project_id) AS project_count\nFROM latest_projects\nWHERE rn = 1\nGROUP BY project_country, project_status\nORDER BY project_country, project_status"", ""tables_used"": [""projects""], ""filters_applied"": [""latest project rows"", ""project_country"", ""project_status""], ""business_rules_applied"": [""Use latest project rows"", ""Group by project_country and project_status"", ""Count distinct project_id to avoid double counting""], ""confidence_score"": 1.0}"
+Give me a table for all projects by country segregated by status and stage,PASS,"WITH latest_projects AS (
+  SELECT *,
+         ROW_NUMBER() OVER (
+           PARTITION BY record_id
+           ORDER BY date_modified DESC
+         ) AS rn
+  FROM projects
+)
+SELECT 
+  project_country,
+  project_status,
+  stage,
+  COUNT(DISTINCT record_id) AS project_count
+FROM latest_projects
+WHERE rn = 1
+GROUP BY 
+  project_country,
+  project_status,
+  stage
+ORDER BY 
+  project_country,
+  project_status,
+  stage;","{""query_intent"": ""Get a table of all projects segregated by country, status, and stage"", ""sql_query"": ""WITH latest_projects AS (\n  SELECT *,\n         ROW_NUMBER() OVER (\n           PARTITION BY record_id\n           ORDER BY date_modified DESC\n         ) AS rn\n  FROM projects\n)\nSELECT \n  project_country,\n  project_status,\n  stage,\n  COUNT(DISTINCT record_id) AS project_count\nFROM latest_projects\nWHERE rn = 1\nGROUP BY \n  project_country,\n  project_status,\n  stage\nORDER BY \n  project_country,\n  project_status,\n  stage;"", ""tables_used"": [""projects""], ""filters_applied"": [""Latest project row"", ""Filter by project_country"", ""Filter by project_status"", ""Filter by stage""], ""business_rules_applied"": [""Use latest project row"", ""Group by project_country, project_status, stage"", ""Count distinct projects to avoid double counting""], ""confidence_score"": 1.0}"
+Give me the NCF and year 1 P50 value for all projects in us,PASS,"WITH latest_budget AS (
+  SELECT *,
+         ROW_NUMBER() OVER (
+           PARTITION BY related_project, project_versioning_budget_label, budget_year_f, month_index
+           ORDER BY date_modified DESC
+         ) AS rn
+  FROM budget_details
+)
+SELECT
+  p.project_id,
+  p.project_name,
+  p.project_country,
+  lb.ncf_p50 AS ncf,
+  lb.p50_year1 AS p50_year1
+FROM projects p
+JOIN latest_budget lb ON p.record_id = lb.related_project
+WHERE p.project_country = 'United States'
+","{""query_intent"": ""Get the NCF and year 1 P50 value for all projects in the US"", ""sql_query"": ""WITH latest_budget AS (\n  SELECT *,\n         ROW_NUMBER() OVER (\n           PARTITION BY related_project, project_versioning_budget_label, budget_year_f, month_index\n           ORDER BY date_modified DESC\n         ) AS rn\n  FROM budget_details\n)\nSELECT\n  p.project_id,\n  p.project_name,\n  p.project_country,\n  lb.ncf_p50 AS ncf,\n  lb.p50_year1 AS p50_year1\nFROM projects p\nJOIN latest_budget lb ON p.record_id = lb.related_project\nWHERE p.project_country = 'United States'\n"", ""tables_used"": [""projects"", ""budget_details""], ""filters_applied"": [""project_country = 'United States'""], ""business_rules_applied"": [""Get latest budget rows"", ""Filter for US projects""], ""confidence_score"": 1.0}"
+"Can you list all important financial assumptions for these projects (Total capex, total epc with breakdown, ebitda and all irrs)",PASS,"WITH latest_assumptions AS (
+  SELECT *,
+         ROW_NUMBER() OVER (
+           PARTITION BY site_name, document_stage, project_assumptions_clean, `group`
+           ORDER BY document_uploaded_date DESC
+         ) AS rn
+  FROM project_assumptions
+)
+SELECT
+  site_name,
+  document_stage,
+  MAX(CASE WHEN `group` = 'CAPEX' THEN value END) AS total_capex,
+  MAX(CASE WHEN `group` = 'EPC' AND project_assumptions_clean = 'Total EPC' THEN value END) AS total_epc,
+  MAX(CASE WHEN project_assumptions_clean = 'WTG' THEN value END) AS wtg_cost,
+  MAX(CASE WHEN project_assumptions_clean = 'Modules' THEN value END) AS modules_cost,
+  MAX(CASE WHEN project_assumptions_clean = 'Inverters' THEN value END) AS inverters_cost,
+  MAX(CASE WHEN project_assumptions_clean = 'Racking' THEN value END) AS racking_cost,
+  MAX(CASE WHEN project_assumptions_clean = 'BESS' THEN value END) AS bess_cost,
+  MAX(CASE WHEN project_assumptions_clean = 'BOP/BOS' THEN value END) AS bop_cost,
+  MAX(CASE WHEN project_assumptions_clean = 'Interconnection' THEN value END) AS interconnection_cost,
+  MAX(CASE WHEN project_assumptions_clean = 'Other Construction Costs' THEN value END) AS other_construction_cost,
+  MAX(CASE WHEN `group` = 'OPEX' AND project_assumptions_clean = 'EBITDA' THEN value END) AS ebitda,
+  MAX(CASE WHEN project_assumptions_clean = 'IRR' THEN value END) AS irr
+FROM latest_assumptions
+WHERE rn = 1
+GROUP BY site_name, document_stage;","{""query_intent"": ""Retrieve key financial assumptions for projects"", ""sql_query"": ""WITH latest_assumptions AS (\n  SELECT *,\n         ROW_NUMBER() OVER (\n           PARTITION BY site_name, document_stage, project_assumptions_clean, `group`\n           ORDER BY document_uploaded_date DESC\n         ) AS rn\n  FROM project_assumptions\n)\nSELECT\n  site_name,\n  document_stage,\n  MAX(CASE WHEN `group` = 'CAPEX' THEN value END) AS total_capex,\n  MAX(CASE WHEN `group` = 'EPC' AND project_assumptions_clean = 'Total EPC' THEN value END) AS total_epc,\n  MAX(CASE WHEN project_assumptions_clean = 'WTG' THEN value END) AS wtg_cost,\n  MAX(CASE WHEN project_assumptions_clean = 'Modules' THEN value END) AS modules_cost,\n  MAX(CASE WHEN project_assumptions_clean = 'Inverters' THEN value END) AS inverters_cost,\n  MAX(CASE WHEN project_assumptions_clean = 'Racking' THEN value END) AS racking_cost,\n  MAX(CASE WHEN project_assumptions_clean = 'BESS' THEN value END) AS bess_cost,\n  MAX(CASE WHEN project_assumptions_clean = 'BOP/BOS' THEN value END) AS bop_cost,\n  MAX(CASE WHEN project_assumptions_clean = 'Interconnection' THEN value END) AS interconnection_cost,\n  MAX(CASE WHEN project_assumptions_clean = 'Other Construction Costs' THEN value END) AS other_construction_cost,\n  MAX(CASE WHEN `group` = 'OPEX' AND project_assumptions_clean = 'EBITDA' THEN value END) AS ebitda,\n  MAX(CASE WHEN project_assumptions_clean = 'IRR' THEN value END) AS irr\nFROM latest_assumptions\nWHERE rn = 1\nGROUP BY site_name, document_stage;"", ""tables_used"": [""project_assumptions""], ""filters_applied"": [""Filter to latest row for each unique combination of site_name, document_stage, project_assumptions_clean, and `group`""], ""business_rules_applied"": [""Use project_assumptions_clean column only"", ""Always filter by site_name and document_stage"", ""Always select latest document_uploaded_date"", ""Totals: Total Investment = Total CAPEX + Other + (Fees+Interests)"", ""OPEX \u2192 group='OPEX'"", ""CAPEX \u2192 group='CAPEX'"", ""Total CAPEX = Total EPC + Others CAPEX Costs"", ""Total EPC = WTG + Modules + Inverters + Racking + BESS + BOP/BOS + Interconnection + Other Construction Costs""], ""confidence_score"": 1.0}"
+Can you give me the projects under carias,PASS,"WITH latest_projects AS (
+  SELECT *,
+         ROW_NUMBER() OVER (
+           PARTITION BY record_id
+           ORDER BY updated_at DESC
+         ) AS rn
+  FROM projects
+)
+SELECT project_name, project_country, project_status, stage
+FROM latest_projects
+WHERE rn = 1
+  AND lower(project_country) IN ('ecuador', 'peru', 'chile', 'colombia')","{""query_intent"": ""Get projects under the Carias region"", ""sql_query"": ""WITH latest_projects AS (\n  SELECT *,\n         ROW_NUMBER() OVER (\n           PARTITION BY record_id\n           ORDER BY updated_at DESC\n         ) AS rn\n  FROM projects\n)\nSELECT project_name, project_country, project_status, stage\nFROM latest_projects\nWHERE rn = 1\n  AND lower(project_country) IN ('ecuador', 'peru', 'chile', 'colombia')"", ""tables_used"": [""projects""], ""filters_applied"": [""project_country IN ('Ecuador', 'Peru', 'Chile', 'Colombia')""], ""business_rules_applied"": [""Region normalization: LATAM / Latin America = Ecuador, Peru, Chile, Colombia""], ""confidence_score"": 1.0}"
+Can you give me the projects handled by gavin berg,PASS,"SELECT DISTINCT project_id, project_name 
+FROM projects
+WHERE lower(project_manager) = 'gavin berg'","{""query_intent"": ""Get projects handled by Gavin Berg"", ""sql_query"": ""SELECT DISTINCT project_id, project_name \nFROM projects\nWHERE lower(project_manager) = 'gavin berg'"", ""tables_used"": [""projects""], ""filters_applied"": [""project_manager = 'gavin berg'""], ""business_rules_applied"": [""Case Handling: Use LOWER() for text comparisons""], ""confidence_score"": 1.0}"
+Can you give among the germany projects which ones have achieved rfc and rff,PASS,"WITH latest_projects AS (
+  SELECT *,
+         ROW_NUMBER() OVER (
+           PARTITION BY record_id
+           ORDER BY updated_at DESC
+         ) AS rn
+  FROM projects
+  WHERE lower(project_country) = 'germany'
+)
+SELECT record_id, project_name, rfc_flag, rff_flag
+FROM latest_projects
+WHERE rn = 1
+  AND rfc_flag = TRUE
+  AND rff_flag = TRUE","{""query_intent"": ""Get Germany projects that have achieved RFC and RFF"", ""sql_query"": ""WITH latest_projects AS (\n  SELECT *,\n         ROW_NUMBER() OVER (\n           PARTITION BY record_id\n           ORDER BY updated_at DESC\n         ) AS rn\n  FROM projects\n  WHERE lower(project_country) = 'germany'\n)\nSELECT record_id, project_name, rfc_flag, rff_flag\nFROM latest_projects\nWHERE rn = 1\n  AND rfc_flag = TRUE\n  AND rff_flag = TRUE"", ""tables_used"": [""projects""], ""filters_applied"": [""project_country = 'germany'"", ""rfc_flag = TRUE"", ""rff_flag = TRUE""], ""business_rules_applied"": [""Get latest row for each project"", ""Filter for projects in Germany"", ""Filter for projects that have achieved RFC and RFF""], ""confidence_score"": 1.0}"
+Can you tell what stage will the projects in germany be at end of dec 2025,PASS,"WITH latest_projects AS (
+  SELECT *,
+         ROW_NUMBER() OVER (
+           PARTITION BY record_id
+           ORDER BY document_uploaded_date DESC
+         ) AS rn
+  FROM project_assumptions
+  WHERE site_name IN (SELECT DISTINCT site_name FROM projects WHERE project_country = 'Germany')
+    AND document_stage = 'Corporate Valuation'
+),
+last_stage AS (
+  SELECT p.record_id,
+         p.project_country,
+         p.stage,
+         p.project_status,
+         p.development_progress
+  FROM projects p
+  WHERE p.project_country = 'Germany'
+    AND p.project_status IN ('Developing', 'Construction', 'Operating', 'Extended COD')
+    AND p.stage IN ('Identified Opportunity', 'AdvancedDevelopment', 'LateDevelopment')
+)
+SELECT
+  last_stage.project_country,
+  last_stage.stage,
+  COUNT(DISTINCT last_stage.record_id) AS project_count
+FROM last_stage
+GROUP BY
+  last_stage.project_country,
+  last_stage.stage
+ORDER BY
+  project_count DESC;","{""query_intent"": ""Get the project stage for projects in Germany as of end of December 2025"", ""sql_query"": ""WITH latest_projects AS (\n  SELECT *,\n         ROW_NUMBER() OVER (\n           PARTITION BY record_id\n           ORDER BY document_uploaded_date DESC\n         ) AS rn\n  FROM project_assumptions\n  WHERE site_name IN (SELECT DISTINCT site_name FROM projects WHERE project_country = 'Germany')\n    AND document_stage = 'Corporate Valuation'\n),\nlast_stage AS (\n  SELECT p.record_id,\n         p.project_country,\n         p.stage,\n         p.project_status,\n         p.development_progress\n  FROM projects p\n  WHERE p.project_country = 'Germany'\n    AND p.project_status IN ('Developing', 'Construction', 'Operating', 'Extended COD')\n    AND p.stage IN ('Identified Opportunity', 'AdvancedDevelopment', 'LateDevelopment')\n)\nSELECT\n  last_stage.project_country,\n  last_stage.stage,\n  COUNT(DISTINCT last_stage.record_id) AS project_count\nFROM last_stage\nGROUP BY\n  last_stage.project_country,\n  last_stage.stage\nORDER BY\n  project_count DESC;"", ""tables_used"": [""projects"", ""project_assumptions""], ""filters_applied"": [""project_country = 'Germany'"", ""project_status IN ('Developing', 'Construction', 'Operating', 'Extended COD')"", ""stage IN ('Identified Opportunity', 'AdvancedDevelopment', 'LateDevelopment')"", ""document_stage = 'Corporate Valuation'""], ""business_rules_applied"": [""Use latest rows from project_assumptions"", ""Filter projects by stage and status"", ""Group by project country and stage""], ""confidence_score"": 1.0}"
+Now can you tell me the same by the end of 2026,PASS,"WITH latest_budget AS (
+  SELECT *,
+         ROW_NUMBER() OVER (
+           PARTITION BY related_project, project_versioning_budget_label, budget_year_f, month_index
+           ORDER BY date_modified DESC
+         ) AS rn
+  FROM budget_details
+),
+
+latest_assumptions AS (
+  SELECT *,
+         ROW_NUMBER() OVER (
+           PARTITION BY site_name, document_stage, project_assumptions_clean, ""group""
+           ORDER BY document_uploaded_date DESC
+         ) AS rn
+  FROM project_assumptions
+)
+
+SELECT SUM(projects.mwe) AS total_capacity_mwe
+FROM projects
+WHERE projects.project_status IN ('Operating', 'Construction')
+  AND projects.stage IN ('AdvancedDevelopment', 'LateDevelopment', 'Identified Opportunity')
+  AND projects.cod_date <= '2026-12-31'
+","{""query_intent"": ""Get the total capacity (MWe) of all portfolio projects that are expected to be in operation by the end of 2026."", ""sql_query"": ""WITH latest_budget AS (\n  SELECT *,\n         ROW_NUMBER() OVER (\n           PARTITION BY related_project, project_versioning_budget_label, budget_year_f, month_index\n           ORDER BY date_modified DESC\n         ) AS rn\n  FROM budget_details\n),\n\nlatest_assumptions AS (\n  SELECT *,\n         ROW_NUMBER() OVER (\n           PARTITION BY site_name, document_stage, project_assumptions_clean, \""group\""\n           ORDER BY document_uploaded_date DESC\n         ) AS rn\n  FROM project_assumptions\n)\n\nSELECT SUM(projects.mwe) AS total_capacity_mwe\nFROM projects\nWHERE projects.project_status IN ('Operating', 'Construction')\n  AND projects.stage IN ('AdvancedDevelopment', 'LateDevelopment', 'Identified Opportunity')\n  AND projects.cod_date <= '2026-12-31'\n"", ""tables_used"": [""projects"", ""budget_details"", ""project_assumptions""], ""filters_applied"": [""project_status IN ('Operating', 'Construction')"", ""stage IN ('AdvancedDevelopment', 'LateDevelopment', 'Identified Opportunity')"", ""cod_date <= '2026-12-31'""], ""business_rules_applied"": [""Portfolio projects definition"", ""Latest row logic for budget_details and project_assumptions"", ""Use stored mwe column from projects table""], ""confidence_score"": 1.0}"
+Can you compare the module equipment price among india and spain,PASS,"WITH latest_assumptions AS (
+  SELECT *,
+         ROW_NUMBER() OVER (
+           PARTITION BY site_name, document_stage, project_assumptions_clean, `group`
+           ORDER BY document_uploaded_date DESC
+         ) AS rn
+  FROM project_assumptions
+  WHERE site_name IN ('India', 'Spain') AND document_stage = 'Corporate Valuation'
+)
+SELECT
+  site_name,
+  ROUND(SUM(CASE WHEN `group` = 'CAPEX' AND project_assumptions_clean = 'Modules' THEN value ELSE 0 END), 2) AS module_price
+FROM latest_assumptions
+WHERE rn = 1
+GROUP BY site_name
+ORDER BY site_name;","{""query_intent"": ""Compare module equipment price between India and Spain"", ""sql_query"": ""WITH latest_assumptions AS (\n  SELECT *,\n         ROW_NUMBER() OVER (\n           PARTITION BY site_name, document_stage, project_assumptions_clean, `group`\n           ORDER BY document_uploaded_date DESC\n         ) AS rn\n  FROM project_assumptions\n  WHERE site_name IN ('India', 'Spain') AND document_stage = 'Corporate Valuation'\n)\nSELECT\n  site_name,\n  ROUND(SUM(CASE WHEN `group` = 'CAPEX' AND project_assumptions_clean = 'Modules' THEN value ELSE 0 END), 2) AS module_price\nFROM latest_assumptions\nWHERE rn = 1\nGROUP BY site_name\nORDER BY site_name;"", ""tables_used"": [""project_assumptions""], ""filters_applied"": [""site_name IN ('India', 'Spain')"", ""document_stage = 'Corporate Valuation'""], ""business_rules_applied"": [""Use latest_assumptions CTE to get latest rows"", ""Filter project_assumptions by site_name and document_stage"", ""Sum module price from CAPEX group""], ""confidence_score"": 1.0}"
+Compare the bess cost across all countries,PASS,"WITH latest AS (
+  SELECT *,
+         ROW_NUMBER() OVER (
+           PARTITION BY site_name, document_stage, project_assumptions_clean, `group`
+           ORDER BY document_uploaded_date DESC
+         ) AS rn
+  FROM project_assumptions
+)
+SELECT
+  project_country,
+  SUM(CASE WHEN `group` = 'CAPEX' AND project_assumptions_clean = 'BESS' THEN value ELSE 0 END) AS bess_cost
+FROM latest
+WHERE rn = 1
+GROUP BY project_country","{""query_intent"": ""Compare the BESS cost across all countries"", ""sql_query"": ""WITH latest AS (\n  SELECT *,\n         ROW_NUMBER() OVER (\n           PARTITION BY site_name, document_stage, project_assumptions_clean, `group`\n           ORDER BY document_uploaded_date DESC\n         ) AS rn\n  FROM project_assumptions\n)\nSELECT\n  project_country,\n  SUM(CASE WHEN `group` = 'CAPEX' AND project_assumptions_clean = 'BESS' THEN value ELSE 0 END) AS bess_cost\nFROM latest\nWHERE rn = 1\nGROUP BY project_country"", ""tables_used"": [""project_assumptions""], ""filters_applied"": [""Filter latest rows using ROW_NUMBER() OVER() partitioned by site_name, document_stage, project_assumptions_clean, group and ordered by document_uploaded_date DESC"", ""Filter for project_assumptions_clean = 'BESS' and group = 'CAPEX'""], ""business_rules_applied"": [""Use latest rows from project_assumptions table"", ""Sum BESS cost per project_country""], ""confidence_score"": 1.0}"
+Give me the land lease requirements for aurora project,PASS,"SELECT project_name, land_lease_area, land_lease_term, land_lease_cost_per_acre 
+FROM projects
+WHERE project_name = 'Aurora'","{""query_intent"": ""Get the land lease requirements for the Aurora project"", ""sql_query"": ""SELECT project_name, land_lease_area, land_lease_term, land_lease_cost_per_acre \nFROM projects\nWHERE project_name = 'Aurora'"", ""tables_used"": [""projects""], ""filters_applied"": [""project_name = 'Aurora'""], ""business_rules_applied"": [], ""confidence_score"": 1.0}"
+Compare the grid connection details of aurora with wimke,PASS,"WITH aurora AS (
+  SELECT 
+    grid_connection_voltage,
+    grid_connection_capacity_mw,
+    grid_connection_distance_km
+  FROM projects
+  WHERE lower(project_name) = 'aurora'
+),
+wimke AS (
+  SELECT
+    grid_connection_voltage,
+    grid_connection_capacity_mw,
+    grid_connection_distance_km
+  FROM projects 
+  WHERE lower(project_name) = 'wimke'
+)
+SELECT
+  'aurora' AS project_name,
+  aurora.grid_connection_voltage,
+  aurora.grid_connection_capacity_mw,
+  aurora.grid_connection_distance_km
+FROM aurora
+UNION ALL
+SELECT
+  'wimke' AS project_name,
+  wimke.grid_connection_voltage,
+  wimke.grid_connection_capacity_mw,
+  wimke.grid_connection_distance_km
+FROM wimke","{""query_intent"": ""Compare the grid connection details of aurora with wimke"", ""sql_query"": ""WITH aurora AS (\n  SELECT \n    grid_connection_voltage,\n    grid_connection_capacity_mw,\n    grid_connection_distance_km\n  FROM projects\n  WHERE lower(project_name) = 'aurora'\n),\nwimke AS (\n  SELECT\n    grid_connection_voltage,\n    grid_connection_capacity_mw,\n    grid_connection_distance_km\n  FROM projects \n  WHERE lower(project_name) = 'wimke'\n)\nSELECT\n  'aurora' AS project_name,\n  aurora.grid_connection_voltage,\n  aurora.grid_connection_capacity_mw,\n  aurora.grid_connection_distance_km\nFROM aurora\nUNION ALL\nSELECT\n  'wimke' AS project_name,\n  wimke.grid_connection_voltage,\n  wimke.grid_connection_capacity_mw,\n  wimke.grid_connection_distance_km\nFROM wimke"", ""tables_used"": [""projects""], ""filters_applied"": [""project_name = 'aurora'"", ""project_name = 'wimke'""], ""business_rules_applied"": [""Case Handling: LOWER() for text comparisons""], ""confidence_score"": 1.0}"
+Can you give me the interconnection costs for all projects in india,PASS,"WITH latest_assumptions AS (
+  SELECT *,
+         ROW_NUMBER() OVER (
+           PARTITION BY site_name, document_stage, project_assumptions_clean, `group`
+           ORDER BY document_uploaded_date DESC
+         ) AS rn
+  FROM project_assumptions
+  WHERE lower(project_country) = 'india'
+)
+SELECT
+  p.project_name,
+  COALESCE(la.value, 0) AS interconnection_cost
+FROM projects p
+LEFT JOIN latest_assumptions la
+  ON p.site_name = la.site_name
+  AND la.`group` = 'CAPEX'
+  AND la.project_assumptions_clean = 'Interconnection'
+WHERE lower(p.project_country) = 'india'","{""query_intent"": ""Get interconnection costs for all projects in India"", ""sql_query"": ""WITH latest_assumptions AS (\n  SELECT *,\n         ROW_NUMBER() OVER (\n           PARTITION BY site_name, document_stage, project_assumptions_clean, `group`\n           ORDER BY document_uploaded_date DESC\n         ) AS rn\n  FROM project_assumptions\n  WHERE lower(project_country) = 'india'\n)\nSELECT\n  p.project_name,\n  COALESCE(la.value, 0) AS interconnection_cost\nFROM projects p\nLEFT JOIN latest_assumptions la\n  ON p.site_name = la.site_name\n  AND la.`group` = 'CAPEX'\n  AND la.project_assumptions_clean = 'Interconnection'\nWHERE lower(p.project_country) = 'india'"", ""tables_used"": [""projects"", ""project_assumptions""], ""filters_applied"": [""project_country = 'india'""], ""business_rules_applied"": [""Use latest row from project_assumptions table"", ""Filter project_assumptions by 'CAPEX' group and 'Interconnection' project_assumptions_clean"", ""Coalesce to 0 if interconnection cost not found""], ""confidence_score"": 1.0}"
+Can you compare the bop/bos cost between projects under miso,PASS,"WITH latest_assumptions AS (
+  SELECT *,
+         ROW_NUMBER() OVER (
+           PARTITION BY site_name, document_stage, project_assumptions_clean, `group`
+           ORDER BY document_uploaded_date DESC
+         ) AS rn
+  FROM project_assumptions
+  WHERE `group` IN ('BOP/BOS', 'Other Construction Costs')
+    AND site_name IN (SELECT DISTINCT site_name FROM projects WHERE project_country IN ('United States'))
+)
+SELECT
+  p.site_name,
+  la.project_assumptions_clean,
+  la.value
+FROM latest_assumptions la
+JOIN projects p ON la.site_name = p.site_name
+WHERE p.project_country IN ('United States')
+  AND p.project_region = 'MISO'
+  AND la.rn = 1
+ORDER BY la.value DESC;","{""query_intent"": ""Compare the BOP/BOS cost between projects under MISO region"", ""sql_query"": ""WITH latest_assumptions AS (\n  SELECT *,\n         ROW_NUMBER() OVER (\n           PARTITION BY site_name, document_stage, project_assumptions_clean, `group`\n           ORDER BY document_uploaded_date DESC\n         ) AS rn\n  FROM project_assumptions\n  WHERE `group` IN ('BOP/BOS', 'Other Construction Costs')\n    AND site_name IN (SELECT DISTINCT site_name FROM projects WHERE project_country IN ('United States'))\n)\nSELECT\n  p.site_name,\n  la.project_assumptions_clean,\n  la.value\nFROM latest_assumptions la\nJOIN projects p ON la.site_name = p.site_name\nWHERE p.project_country IN ('United States')\n  AND p.project_region = 'MISO'\n  AND la.rn = 1\nORDER BY la.value DESC;"", ""tables_used"": [""project_assumptions"", ""projects""], ""filters_applied"": [""project_country IN ('United States')"", ""project_region = 'MISO'"", ""group IN ('BOP/BOS', 'Other Construction Costs')""], ""business_rules_applied"": [""Latest row logic for project_assumptions"", ""Filter projects in MISO region""], ""confidence_score"": 1.0}"
+Can you tell me which projects are ready for commercialisation in spain,PASS,"WITH latest AS (
+  SELECT *,
+         ROW_NUMBER() OVER (
+           PARTITION BY site_name, document_stage, project_assumptions_clean, ""group""
+           ORDER BY document_uploaded_date DESC
+         ) AS rn
+  FROM project_assumptions
+)
+SELECT DISTINCT p.record_id, p.project_name, p.project_country, p.project_status, p.stage
+FROM projects p
+JOIN latest pa ON p.record_id = pa.related_project
+WHERE p.project_country IN ('Spain')
+  AND p.project_status IN ('Developing', 'Construction', 'Operating', 'Extended COD')
+  AND p.stage IN ('AdvancedDevelopment', 'LateDevelopment')
+  AND pa.rn = 1
+  AND pa.project_assumptions_clean = 'PPA signed'
+  AND pa.""group"" = 'CAPEX'
+  AND pa.document_stage = 'Corporate Valuation'","{""query_intent"": ""Get projects ready for commercialization in Spain"", ""sql_query"": ""WITH latest AS (\n  SELECT *,\n         ROW_NUMBER() OVER (\n           PARTITION BY site_name, document_stage, project_assumptions_clean, \""group\""\n           ORDER BY document_uploaded_date DESC\n         ) AS rn\n  FROM project_assumptions\n)\nSELECT DISTINCT p.record_id, p.project_name, p.project_country, p.project_status, p.stage\nFROM projects p\nJOIN latest pa ON p.record_id = pa.related_project\nWHERE p.project_country IN ('Spain')\n  AND p.project_status IN ('Developing', 'Construction', 'Operating', 'Extended COD')\n  AND p.stage IN ('AdvancedDevelopment', 'LateDevelopment')\n  AND pa.rn = 1\n  AND pa.project_assumptions_clean = 'PPA signed'\n  AND pa.\""group\"" = 'CAPEX'\n  AND pa.document_stage = 'Corporate Valuation'"", ""tables_used"": [""projects"", ""project_assumptions""], ""filters_applied"": [""project_country IN ('Spain')"", ""project_status IN ('Developing', 'Construction', 'Operating', 'Extended COD')"", ""stage IN ('AdvancedDevelopment', 'LateDevelopment')"", ""project_assumptions_clean = 'PPA signed'"", ""group = 'CAPEX'"", ""document_stage = 'Corporate Valuation'""], ""business_rules_applied"": [""Latest row logic for project_assumptions"", ""Portfolio project definition"", ""Region normalization for Spain""], ""confidence_score"": 1.0}"
+What will be the development progress for babilonia till 2026,PASS,"WITH latest_projects AS (
+  SELECT *,
+         ROW_NUMBER() OVER (
+           PARTITION BY record_id
+           ORDER BY development_progress_date DESC
+         ) AS rn
+  FROM projects
+  WHERE lower(project_name) = 'babilonia'
+)
+SELECT
+  project_name,
+  development_progress,
+  development_progress_date
+FROM latest_projects
+WHERE rn = 1
+  AND development_progress_date <= '2026-12-31'
+ORDER BY development_progress_date ASC;","{""query_intent"": ""Get the development progress for the 'babilonia' project until 2026"", ""sql_query"": ""WITH latest_projects AS (\n  SELECT *,\n         ROW_NUMBER() OVER (\n           PARTITION BY record_id\n           ORDER BY development_progress_date DESC\n         ) AS rn\n  FROM projects\n  WHERE lower(project_name) = 'babilonia'\n)\nSELECT\n  project_name,\n  development_progress,\n  development_progress_date\nFROM latest_projects\nWHERE rn = 1\n  AND development_progress_date <= '2026-12-31'\nORDER BY development_progress_date ASC;"", ""tables_used"": [""projects""], ""filters_applied"": [""project_name = 'babilonia'"", ""development_progress_date <= '2026-12-31'""], ""business_rules_applied"": [""Get the latest row for each project using ROW_NUMBER() OVER()"", ""Order the results by development_progress_date in ascending order""], ""confidence_score"": 1.0}"
+Which projects will finish construction in 2025 in spain,PASS,"WITH latest_projects AS (
+  SELECT *,
+         ROW_NUMBER() OVER (
+           PARTITION BY record_id
+           ORDER BY date_modified DESC
+         ) AS rn
+  FROM projects
+  WHERE lower(project_country) IN ('spain')
+)
+SELECT COUNT(DISTINCT record_id) AS project_count
+FROM latest_projects
+WHERE project_status IN ('Operating', 'Construction')
+  AND date_part('year', commercial_operation_date) = 2025
+","{""query_intent"": ""Find projects that will finish construction in 2025 in Spain"", ""sql_query"": ""WITH latest_projects AS (\n  SELECT *,\n         ROW_NUMBER() OVER (\n           PARTITION BY record_id\n           ORDER BY date_modified DESC\n         ) AS rn\n  FROM projects\n  WHERE lower(project_country) IN ('spain')\n)\nSELECT COUNT(DISTINCT record_id) AS project_count\nFROM latest_projects\nWHERE project_status IN ('Operating', 'Construction')\n  AND date_part('year', commercial_operation_date) = 2025\n"", ""tables_used"": [""projects""], ""filters_applied"": [""project_country IN ('spain')"", ""project_status IN ('Operating', 'Construction')"", ""date_part('year', commercial_operation_date) = 2025""], ""business_rules_applied"": [""Use latest row for each project"", ""Filter for projects in Spain"", ""Filter for projects that have finished construction in 2025""], ""confidence_score"": 1.0}"
+What about in 2026,PASS,"WITH latest AS (
+  SELECT *,
+         ROW_NUMBER() OVER (
+           PARTITION BY related_project, project_versioning_budget_label, budget_year_f, month_index
+           ORDER BY date_modified DESC
+         ) AS rn
+  FROM budget_details
+)
+SELECT SUM(mwe) AS total_capacity_mwe
+FROM projects p
+JOIN latest b ON p.record_id = b.related_project
+WHERE p.project_status IN ('Developing', 'Construction', 'Operating', 'Extended COD')
+  AND p.stage IN ('Identified Opportunity', 'AdvancedDevelopment', 'LateDevelopment')
+  AND b.budget_year_f = 2026
+","{""query_intent"": ""Get the total capacity (MWe) of all portfolio projects in 2026"", ""sql_query"": ""WITH latest AS (\n  SELECT *,\n         ROW_NUMBER() OVER (\n           PARTITION BY related_project, project_versioning_budget_label, budget_year_f, month_index\n           ORDER BY date_modified DESC\n         ) AS rn\n  FROM budget_details\n)\nSELECT SUM(mwe) AS total_capacity_mwe\nFROM projects p\nJOIN latest b ON p.record_id = b.related_project\nWHERE p.project_status IN ('Developing', 'Construction', 'Operating', 'Extended COD')\n  AND p.stage IN ('Identified Opportunity', 'AdvancedDevelopment', 'LateDevelopment')\n  AND b.budget_year_f = 2026\n"", ""tables_used"": [""projects"", ""budget_details""], ""filters_applied"": [""project_status IN ('Developing', 'Construction', 'Operating', 'Extended COD')"", ""stage IN ('Identified Opportunity', 'AdvancedDevelopment', 'LateDevelopment')"", ""budget_year_f = 2026""], ""business_rules_applied"": [""Portfolio projects definition"", ""Latest row logic for budget_details"", ""MWe rule""], ""confidence_score"": 1.0}"
+Give me the projects that will start construction in 2026 in spain,PASS,"WITH latest_projects AS (
+  SELECT *,
+         ROW_NUMBER() OVER (
+           PARTITION BY record_id
+           ORDER BY date_modified DESC
+         ) AS rn
+  FROM projects
+  WHERE lower(project_country) IN ('spain')
+    AND project_status IN ('Developing', 'Construction')
+    AND ntp_date BETWEEN '2026-01-01' AND '2026-12-31'
+),
+
+latest_budgets AS (
+  SELECT *,
+         ROW_NUMBER() OVER (
+           PARTITION BY related_project, project_versioning_budget_label, budget_year_f, month_index
+           ORDER BY date_modified DESC
+         ) AS rn
+  FROM budget_details
+)
+
+SELECT DISTINCT p.record_id,
+              p.project_name,
+              p.project_country,
+              p.project_status,
+              p.ntp_date,
+              p.mwe
+FROM latest_projects p
+JOIN latest_budgets b ON p.record_id = b.related_project
+WHERE p.rn = 1
+  AND b.rn = 1
+  AND p.project_status IN ('Developing', 'Construction')
+  AND p.ntp_date BETWEEN '2026-01-01' AND '2026-12-31'","{""query_intent"": ""Get projects that will start construction in 2026 in Spain"", ""sql_query"": ""WITH latest_projects AS (\n  SELECT *,\n         ROW_NUMBER() OVER (\n           PARTITION BY record_id\n           ORDER BY date_modified DESC\n         ) AS rn\n  FROM projects\n  WHERE lower(project_country) IN ('spain')\n    AND project_status IN ('Developing', 'Construction')\n    AND ntp_date BETWEEN '2026-01-01' AND '2026-12-31'\n),\n\nlatest_budgets AS (\n  SELECT *,\n         ROW_NUMBER() OVER (\n           PARTITION BY related_project, project_versioning_budget_label, budget_year_f, month_index\n           ORDER BY date_modified DESC\n         ) AS rn\n  FROM budget_details\n)\n\nSELECT DISTINCT p.record_id,\n              p.project_name,\n              p.project_country,\n              p.project_status,\n              p.ntp_date,\n              p.mwe\nFROM latest_projects p\nJOIN latest_budgets b ON p.record_id = b.related_project\nWHERE p.rn = 1\n  AND b.rn = 1\n  AND p.project_status IN ('Developing', 'Construction')\n  AND p.ntp_date BETWEEN '2026-01-01' AND '2026-12-31'"", ""tables_used"": [""projects"", ""budget_details""], ""filters_applied"": [""project_country IN ('spain')"", ""project_status IN ('Developing', 'Construction')"", ""ntp_date BETWEEN '2026-01-01' AND '2026-12-31'""], ""business_rules_applied"": [""Use latest rows from projects and budget_details tables"", ""Filter projects with status 'Developing' or 'Construction' and ntp_date in 2026"", ""Deduplicate projects using DISTINCT on record_id""], ""confidence_score"": 1.0}"
+What are the main drivers for a project having a significantly higher project IRR than others,PASS,"WITH latest_assumptions AS (
+  SELECT *,
+         ROW_NUMBER() OVER (
+           PARTITION BY site_name, document_stage, project_assumptions_clean, `group`
+           ORDER BY document_uploaded_date DESC
+         ) AS rn
+  FROM project_assumptions
+)
+SELECT
+  p.project_id,
+  p.project_name,
+  p.project_country,
+  p.project_status,
+  p.stage,
+  p.mwe,
+  p.total_capex,
+  p.total_opex,
+  p.total_investment,
+  p.project_irr
+FROM projects p
+JOIN latest_assumptions la ON p.site_name = la.site_name AND la.`group` IN ('CAPEX', 'OPEX')
+WHERE p.project_irr > (
+  SELECT AVG(project_irr) FROM projects
+) + 2 * (
+  SELECT STDDEV(project_irr) FROM projects
+)
+ORDER BY p.project_irr DESC
+LIMIT 10","{""query_intent"": ""Identify the main drivers for projects with significantly higher IRR"", ""sql_query"": ""WITH latest_assumptions AS (\n  SELECT *,\n         ROW_NUMBER() OVER (\n           PARTITION BY site_name, document_stage, project_assumptions_clean, `group`\n           ORDER BY document_uploaded_date DESC\n         ) AS rn\n  FROM project_assumptions\n)\nSELECT\n  p.project_id,\n  p.project_name,\n  p.project_country,\n  p.project_status,\n  p.stage,\n  p.mwe,\n  p.total_capex,\n  p.total_opex,\n  p.total_investment,\n  p.project_irr\nFROM projects p\nJOIN latest_assumptions la ON p.site_name = la.site_name AND la.`group` IN ('CAPEX', 'OPEX')\nWHERE p.project_irr > (\n  SELECT AVG(project_irr) FROM projects\n) + 2 * (\n  SELECT STDDEV(project_irr) FROM projects\n)\nORDER BY p.project_irr DESC\nLIMIT 10"", ""tables_used"": [""projects"", ""project_assumptions""], ""filters_applied"": [""project_irr > (AVG(project_irr) + 2 * STDDEV(project_irr))""], ""business_rules_applied"": [""Use latest rows from project_assumptions"", ""Filter CAPEX and OPEX assumptions"", ""Order by project_irr descending"", ""Limit to top 10 results""], ""confidence_score"": 1.0}"
+Give me the h1 budget for germany projects for 2025,PASS,"WITH latest AS (
+  SELECT *,
+         ROW_NUMBER() OVER (
+           PARTITION BY related_project, project_versioning_budget_label, budget_year_f, month_index
+           ORDER BY date_modified DESC
+         ) AS rn
+  FROM budget_details
+)
+SELECT
+  SUM(h1_budget) AS h1_budget
+FROM latest
+JOIN projects ON latest.related_project = projects.record_id
+WHERE
+  projects.project_country IN ('Germany')
+  AND latest.budget_year_f = 2025
+  AND latest.month_index BETWEEN 1 AND 6
+  AND rn = 1","{""query_intent"": ""Get the H1 budget for Germany projects in 2025"", ""sql_query"": ""WITH latest AS (\n  SELECT *,\n         ROW_NUMBER() OVER (\n           PARTITION BY related_project, project_versioning_budget_label, budget_year_f, month_index\n           ORDER BY date_modified DESC\n         ) AS rn\n  FROM budget_details\n)\nSELECT\n  SUM(h1_budget) AS h1_budget\nFROM latest\nJOIN projects ON latest.related_project = projects.record_id\nWHERE\n  projects.project_country IN ('Germany')\n  AND latest.budget_year_f = 2025\n  AND latest.month_index BETWEEN 1 AND 6\n  AND rn = 1"", ""tables_used"": [""budget_details"", ""projects""], ""filters_applied"": [""project_country IN ('Germany')"", ""budget_year_f = 2025"", ""month_index BETWEEN 1 AND 6""], ""business_rules_applied"": [""Use latest rows from budget_details"", ""Sum H1 budget""], ""confidence_score"": 1.0}"
+How much budget is required for Babilonia to change to next stage,PASS,"WITH latest_budget AS (
+  SELECT *,
+         ROW_NUMBER() OVER (
+           PARTITION BY related_project, project_versioning_budget_label, budget_year_f, month_index
+           ORDER BY date_modified DESC
+         ) AS rn
+  FROM budget_details
+  WHERE related_project = (SELECT record_id FROM projects WHERE site_name = 'Babilonia')
+)
+SELECT SUM(total_budget_amount) AS total_budget_required
+FROM latest_budget
+WHERE rn = 1","{""query_intent"": ""Get the budget required for the Babilonia project to advance to the next stage"", ""sql_query"": ""WITH latest_budget AS (\n  SELECT *,\n         ROW_NUMBER() OVER (\n           PARTITION BY related_project, project_versioning_budget_label, budget_year_f, month_index\n           ORDER BY date_modified DESC\n         ) AS rn\n  FROM budget_details\n  WHERE related_project = (SELECT record_id FROM projects WHERE site_name = 'Babilonia')\n)\nSELECT SUM(total_budget_amount) AS total_budget_required\nFROM latest_budget\nWHERE rn = 1"", ""tables_used"": [""budget_details"", ""projects""], ""filters_applied"": [""related_project = (SELECT record_id FROM projects WHERE site_name = 'Babilonia')"", ""rn = 1""], ""business_rules_applied"": [""Use latest rows from budget_details table"", ""Join with projects table to get project record_id"", ""Sum the total_budget_amount to get the total budget required""], ""confidence_score"": 1.0}"
