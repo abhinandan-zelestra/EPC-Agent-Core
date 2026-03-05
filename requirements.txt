@@ -4,3 +4,4 @@ bedrock-agentcore
 strands-agents
 python-dotenv
 uv
+sqlparse
